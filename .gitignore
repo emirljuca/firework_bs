@@ -1,0 +1,4 @@
+.vs/*
+target/*
+Cargo.lock
+*.zip
