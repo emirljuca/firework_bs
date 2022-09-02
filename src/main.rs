@@ -1,14 +1,12 @@
 use bevy::input::mouse::MouseButton;
 use bevy::prelude::*;
 use bevy::window::WindowMode;
-mod entities;
-use entities::*;
+mod shells;
+use shells::*;
+use shells::projectile::Projectile;
 
 const HEIGHT: f32 = 1440.0;
 const WIDTH: f32 = 2560.0;
-const SPEED: f32 = 250.;
-const ROTATION: f32 = 2.;
-const LIFE: f32 = 25.;
 
 fn main() {
     App::new()
@@ -45,11 +43,12 @@ fn handle_mouse_events(
         let window = windows.get_primary().expect("no primary window");
         let position = window.cursor_position().expect("clicked out of window")
             - Vec2::from((WIDTH / 2., HEIGHT / 2.));
-        let firework = ClassicFirework(&asset_server);
+        let firework1 = classic_firework(&asset_server);
+        let firework2 = bees_firework(&asset_server);
         // let sprite: Handle<Image> = asset_server.load("sprite.png");
         // let bubble: Handle<Image> = asset_server.load("bubble.png");
         // spawn_particles(&mut commands, sprite, 10, position, SPEED, ROTATION, 0.5*LIFE);
-        spawn_shells(&mut commands, position, vec![firework]);
+        spawn_shells(&mut commands, position, vec![firework1, firework2]);
         // spawn_particles(&mut commands, bubble, 1, position, 0., ROTATION, 0.5*LIFE);
     }
 }
@@ -102,7 +101,7 @@ fn life(
         projectile.life.0.tick(time.delta());
         if projectile.life.0.finished() {
             commands.entity(entity).despawn();
-            let mut vec = shells.shells.clone();
+            let vec = shells.shells.clone();
             spawn_shells(
                 &mut commands,
                 Vec2::new(transform.translation.x, transform.translation.y),
