@@ -1,4 +1,6 @@
-use bevy::prelude::*;
+use std::time::Duration;
+
+use bevy::{prelude::*, render::render_graph::GraphInputNode};
 
 const GRAVITY: Vec2 = Vec2::new(0., -60.);
 
@@ -9,64 +11,107 @@ pub struct MainCamera;
 pub struct Velocity(pub Vec2);
 
 #[derive(Component, Clone)]
-pub struct Acceleration(pub Vec2);
-
-#[derive(Component, Clone)]
 pub struct Rotation(pub f32);
 
 #[derive(Component, Clone)]
 pub struct Lifetime(pub Timer);
 
-#[derive(Component, Clone)]
-pub struct Propulsion {
-    pub thrust: f32,
-    pub burn_time: Timer,
+// Accelerator: a(t) = dv/dt -> dv = dt*a(t)
+// Velocity: v = a*t + cv ; v = dp/dt ; v(dt+t) = v(t) + v(dt)*dt
+// Position: p = a*t^2 + cv*t + cp
+
+fn randomize_accelerator(
+    thrust: &f32,
+    velocity: &mut Velocity,
+    d_time: &f32,
+    burn_time: &Timer,
+) {
+    let acceleration = *thrust * velocity.0.normalize() * rand::random::<f32>();
+    velocity.0 += acceleration * *d_time;
 }
 
-impl Default for Propulsion {
-    fn default() -> Self {
-        Propulsion {
-            thrust: 0.,
-            burn_time: Timer::from_seconds(0., false),
-        }
+fn exponential_accelerator(
+    thrust: &f32,
+    velocity: &mut Velocity,
+    d_time: &f32,
+    burn_time: &Timer,
+) {
+    let acceleration = *thrust * velocity.0.normalize() * (-(burn_time.elapsed().as_millis() as f32) / 500.).exp();
+    // let acceleration = *thrust * velocity.0.normalize();
+    velocity.0 += acceleration * *d_time;
+}
+
+#[derive(Component, Clone)]
+pub struct Accelerator {
+    pub accelerator:
+        fn(thrust: &f32,
+            velocity: &mut Velocity,
+            d_time: &f32,
+            burn_time: &Timer,),
+    pub burn_time: Timer,
+    pub thrust: f32
+}
+
+impl Accelerator {
+    pub fn get_velocity(&self, velocity: &mut Velocity, d_time: &f32) {
+        (self.accelerator)(&self.thrust, velocity, d_time, &self.burn_time);
     }
 }
-#[derive(Clone)]
+
+#[derive(Component, Clone)]
 pub struct Projectile {
     pub velocity: Velocity,
     pub life: Lifetime,
-    pub acceleration: Acceleration,
     pub image: Handle<Image>,
     pub color: Option<String>,
-    pub propulsion: Option<Propulsion>,
+    pub accelerator: Option<Accelerator>,
 }
 
-pub fn get_thrust_acceleration(propulsion: &Propulsion, velocity: &Velocity) -> Vec2 {
-    propulsion.thrust * velocity.0.normalize()
+impl Projectile {
+    pub fn accelerate(&mut self, duration: Duration) {
+        self.velocity.0 += GRAVITY*duration.as_secs_f32();
+        if let Some(accelerator) = &mut self.accelerator {
+            if !accelerator.burn_time.finished() {
+                // Tick forward burn time of propultion.
+                accelerator.burn_time.tick(duration);
+                accelerator.get_velocity(&mut self.velocity, &duration.as_secs_f32());
+            }
+            if accelerator.burn_time.finished() {
+                self.accelerator = None;
+            }
+        }
+    }
 }
 
 fn straight_upward_moving_projectile(image: Handle<Image>) -> Projectile {
-    let velocity = Velocity(Vec2::from((-20. + rand::random::<f32>()*40., 250.+ rand::random::<f32>()*50.)));
-    let life = Lifetime(Timer::from_seconds(2.+ rand::random::<f32>()*2., false));
-    let propulsion = Propulsion {
-        thrust: 100. + rand::random::<f32>()*50.,
-        burn_time: Timer::from_seconds(0.5 + rand::random::<f32>()*0.5, false),
+    let mut velocity = Velocity(Vec2::from((
+        -5. + rand::random::<f32>() * 10.,
+    50. + rand::random::<f32>() * 10.,
+    )));
+    let life = Lifetime(Timer::from_seconds(4. + rand::random::<f32>() * 1., false));
+    let thrust = 1000. + rand::random::<f32>() * 500.;
+    let burn_time = Timer::from_seconds(
+        0.25 + rand::random::<f32>() * 0.1,
+        false,
+    );
+    let accelerator = Accelerator {
+        accelerator: exponential_accelerator,
+        burn_time: burn_time,
+        thrust: thrust,
     };
-    let prop_vec = get_thrust_acceleration(&propulsion, &velocity);
-    let acceleration = Acceleration(prop_vec + GRAVITY);
+    accelerator.get_velocity(&mut velocity, &0.);
     Projectile {
         velocity,
         life,
-        acceleration,
         image,
         color: None,
-        propulsion: Some(propulsion),
+        accelerator: Some(accelerator),
     }
 }
 
 #[derive(Component, Clone)]
 pub struct Shells {
-    pub shells: Vec<Shell>
+    pub shells: Vec<Shell>,
 }
 
 impl Default for Shells {
@@ -81,21 +126,34 @@ pub struct Shell {
     pub shells: Option<Shells>,
 }
 
-fn blooming_shells(image: Handle<Image>, projectile_in: Option<Projectile>, number: Option<i32>) -> Vec<Shell> {
-    let acceleration = Acceleration(GRAVITY);
+fn blooming_shells(
+    image: Handle<Image>,
+    projectile_in: Option<Projectile>,
+    number: Option<i32>,
+) -> Vec<Shell> {
     let mut shells = Vec::new();
     for _ in 0..20 {
-        let speed = 50.+rand::random::<f32>()*50.;
-        let life = Lifetime(Timer::from_seconds(1.5 + rand::random::<f32>()*2., false));
+        let speed = 25. + rand::random::<f32>() * 25.;
+        let life = Lifetime(Timer::from_seconds(2. + rand::random::<f32>() * 1., false));
         let angle = std::f32::consts::TAU * rand::random::<f32>();
-        let velocity = Velocity(speed * Vec2::from((angle.cos(), angle.sin())));
+        let mut velocity = Velocity(speed * Vec2::from((angle.cos(), angle.sin())));
+        let thrust = 100. + rand::random::<f32>() * 50.;
+        let burn_time = Timer::from_seconds(
+            0.5 + rand::random::<f32>() * 0.5,
+            false,
+        );
+        let accelerator = Accelerator {
+            accelerator: randomize_accelerator,
+            burn_time: burn_time,
+            thrust: thrust,
+        };
+        accelerator.get_velocity( &mut velocity, &0.);
         let projectile = Projectile {
             velocity,
-            life: life.clone(),
-            acceleration: acceleration.clone(),
+            life: life,
             image: image.clone(),
             color: None,
-            propulsion: None,
+            accelerator: Some(accelerator),
         };
         shells.push(Shell {
             projectile,
@@ -110,6 +168,6 @@ pub fn ClassicFirework(asset_server: &Res<AssetServer>) -> Shell {
     let shells = blooming_shells(asset_server.load("bubble.png"), None, None);
     Shell {
         projectile,
-        shells: Some(Shells{ shells }),
+        shells: Some(Shells { shells }),
     }
 }

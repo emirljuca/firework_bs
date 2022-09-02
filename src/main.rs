@@ -58,7 +58,7 @@ fn spawn_shells(commands: &mut Commands, position: Vec2, shells: Vec<Shell>) {
     for shell in shells {
         let transform = Transform {
             translation: Vec3::from((position, 0.)),
-            scale: Vec3::splat(2.),
+            scale: Vec3::splat(0.5),
             rotation: Quat::from_rotation_z(0.),
         };
         commands
@@ -67,66 +67,47 @@ fn spawn_shells(commands: &mut Commands, position: Vec2, shells: Vec<Shell>) {
                 transform,
                 ..default()
             })
-            .insert(shell.projectile.velocity)
-            .insert(shell.projectile.life)
-            .insert(shell.projectile.acceleration)
-            .insert(shell.projectile.propulsion.unwrap_or_default())
+            .insert(shell.projectile)
             .insert(shell.shells.unwrap_or_default());
     }
 }
 
-fn movement(
-    time: Res<Time>,
-    mut query: Query<(
-        &mut Acceleration,
-        &mut Propulsion,
-        &mut Velocity,
-        &mut Transform,
-    )>,
-) {
-    for (mut acceleration, mut propulsion, mut velocity, mut transform) in &mut query {
-        // Continue initial acceleration of propulsed object until burn time is finished.
-        if !propulsion.burn_time.finished() {
-            // Tick forward burn time of propultion.
-            propulsion.burn_time.tick(time.delta());
-        }
-        if propulsion.burn_time.finished() {
-            if propulsion.thrust > 0. {
-                // Deaccelerate projectile from thrust.
-                acceleration.0 -= get_thrust_acceleration(&propulsion, &velocity);
-                // Remove thrust.
-                propulsion.thrust = 0.;
-            }
-        }
-        // Calculate current velocity.
-        velocity.0 += Vec2::from(acceleration.0 * time.delta_seconds());
+fn movement(time: Res<Time>, mut query: Query<(&mut Projectile, &mut Transform)>) {
+    for (mut projectile, mut transform) in &mut query {
+        // Accelerate changes projectile velocity.
+        projectile.accelerate(time.delta());
         // Move object based off current
-        transform.translation += Vec3::from((velocity.0 * time.delta_seconds(), 0.));
-        if transform.translation.y > HEIGHT / 2. {
-            velocity.0.y = -velocity.0.y.abs();
-        } else if transform.translation.y < -HEIGHT / 2. {
-            velocity.0.y = velocity.0.y.abs();
-        }
+        transform.translation += Vec3::from((projectile.velocity.0 * time.delta_seconds(), 0.));
+        // Turn off bouncing for now.
+        // if transform.translation.y > HEIGHT / 2. {
+        //     projectile.velocity.0.y = -projectile.velocity.0.y.abs();
+        // } else if transform.translation.y < -HEIGHT / 2. {
+        //     projectile.velocity.0.y = projectile.velocity.0.y.abs();
+        // }
 
-        if transform.translation.x > WIDTH / 2. {
-            velocity.0.x = -velocity.0.x.abs();
-        } else if transform.translation.x < -WIDTH / 2. {
-            velocity.0.x = velocity.0.x.abs();
-        }
+        // if transform.translation.x > WIDTH / 2. {
+        //     projectile.velocity.0.x = -projectile.velocity.0.x.abs();
+        // } else if transform.translation.x < -WIDTH / 2. {
+        //     projectile.velocity.0.x = projectile.velocity.0.x.abs();
+        // }
     }
 }
 
 fn life(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Lifetime, &Shells, &Transform)>,
+    mut query: Query<(Entity, &mut Projectile, &Shells, &Transform)>,
 ) {
-    for (entity, mut lifetime, shells, transform) in &mut query {
-        lifetime.0.tick(time.delta());
-        if lifetime.0.finished() {
+    for (entity, mut projectile, shells, transform) in &mut query {
+        projectile.life.0.tick(time.delta());
+        if projectile.life.0.finished() {
             commands.entity(entity).despawn();
             let mut vec = shells.shells.clone();
-            spawn_shells(&mut commands, Vec2::new(transform.translation.x, transform.translation.y), vec);
+            spawn_shells(
+                &mut commands,
+                Vec2::new(transform.translation.x, transform.translation.y),
+                vec,
+            );
         }
     }
 }
