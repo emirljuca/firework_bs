@@ -54,7 +54,7 @@ fn blooming_shells(
 }
 
 pub fn bees_firework(asset_server: &Res<AssetServer>) -> Shell {
-    let projectile = straight_upward_moving_projectile(asset_server.load("bubble.png"));
+    let projectile = straight_upward_moving_projectile(asset_server.load("firework.png"));
     let thrust = 8. + rand::random::<f32>() * 2.;
     let burn_time = Timer::from_seconds(1.5 + rand::random::<f32>() * 0.5, false);
     let accelerator = Accelerator {
@@ -62,7 +62,7 @@ pub fn bees_firework(asset_server: &Res<AssetServer>) -> Shell {
         burn_time: burn_time,
         thrust: thrust,
     };
-    let shells = blooming_shells(asset_server.load("bubble.png"), None, Some(50), &accelerator);
+    let shells = blooming_shells(asset_server.load("firework_elements/sodium.png"), None, Some(50), &accelerator);
     Shell {
         projectile,
         shells: Some(Shells { shells }),
@@ -70,7 +70,7 @@ pub fn bees_firework(asset_server: &Res<AssetServer>) -> Shell {
 }
 
 pub fn classic_firework(asset_server: &Res<AssetServer>) -> Shell {
-    let projectile = straight_upward_moving_projectile(asset_server.load("bubble.png"));
+    let projectile = straight_upward_moving_projectile(asset_server.load("firework.png"));
     let thrust = 8. + rand::random::<f32>() * 2.;
     let burn_time = Timer::from_seconds(1.5 + rand::random::<f32>() * 0.5, false);
     let accelerator = Accelerator {
@@ -78,7 +78,7 @@ pub fn classic_firework(asset_server: &Res<AssetServer>) -> Shell {
         burn_time: burn_time,
         thrust: thrust,
     };
-    let shells = blooming_shells(asset_server.load("bubble.png"), None, Some(20), &accelerator);
+    let shells = blooming_shells(asset_server.load("firework_elements/copper.png"), None, Some(40), &accelerator);
     Shell {
         projectile,
         shells: Some(Shells { shells }),

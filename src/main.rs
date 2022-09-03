@@ -11,12 +11,12 @@ const WIDTH: f32 = 2560.0;
 fn main() {
     App::new()
         .insert_resource(bevy::render::texture::ImageSettings::default_nearest())
-        .insert_resource(ClearColor(Color::rgb(0.2, 0.2, 0.2)))
+        .insert_resource(ClearColor(Color::rgb(0.05, 0.05, 0.05)))
         .insert_resource(WindowDescriptor {
             width: WIDTH,
             height: HEIGHT,
             scale_factor_override: Some(1.),
-            title: "Test Project : plz compile".to_string(),
+            title: "Fireworks Show".to_string(),
             resizable: false,
             mode: WindowMode::BorderlessFullscreen,
             ..Default::default()
